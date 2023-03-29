@@ -5,8 +5,6 @@ from multiprocessing import shared_memory, Array, Manager
 import sys
 import multiprocessing
 
-words = ("нуль", "один", "два", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять", "десять")
-
 
 def server():
     vectors = [[6, 8, 9, 67, -7], [6, 9, 0], [1, 2, 3, 4, 0]]
@@ -22,16 +20,19 @@ def server():
         # a[0] = a[0] + 1
         a.set(a.get() + 1)
         print("активных клиентов:", a.get())
-        pid = os.fork()
-        if pid == 0:
-            s.close()
-            child_server(conn, addr, a, shared_vectors)
-            sys.exit(0)
-        else:
-            conn.close()
+        proc = multiprocessing.Process(target=child_server, args=(conn, addr, a, shared_vectors, s))
+        proc.start()
+        # pid = os.fork()
+        # if pid == 0:
+        # s.close()
+        # child_server(conn, addr, a, shared_vectors)
+        # sys.exit(0)
+        # else:
+        conn.close()
 
 
-def child_server(conn, addr, b, shared_vectors):
+def child_server(conn, addr, b, shared_vectors, s):
+    s.close()
     message = ""
     # b = shared_memory.ShareableList(name=share_name)
     print("Это ведомый поток")
@@ -59,26 +60,24 @@ def child_server(conn, addr, b, shared_vectors):
             shared_vectors[int(split_data[1]) - 1] = collection_to_send
             message = "Успешно"
         elif split_data[0] == "delete":
-            shared_vectors.pop(int(split_data[1]))
+            shared_vectors.pop(int(split_data[1]) - 1)
             message = "Успешно"
         elif split_data[0] == "*":
             coefficient = int(split_data[1])
-            for vector in shared_vectors:
+            for i in range(len(shared_vectors)):
                 temp = []
-                for el in vector:
-                    temp.append(el * coefficient)
-                collection_to_send.append(temp)
+                for j in range(len(shared_vectors[i])):
+                    temp.append(shared_vectors[i][j] * coefficient)
+                shared_vectors[i] = temp
             message = "Успешно"
-            shared_vectors = collection_to_send
         elif split_data[0] == "/":
             coefficient = int(split_data[1])
-            for vector in shared_vectors:
+            for i in range(len(shared_vectors)):
                 temp = []
-                for el in vector:
-                    temp.append(el / coefficient)
-                collection_to_send.append(temp)
+                for j in range(len(shared_vectors[i])):
+                    temp.append(shared_vectors[i][j] / coefficient)
+                shared_vectors[i] = temp
             message = "Успешно"
-            shared_vectors = collection_to_send
         elif split_data[0] == "min":
             for vector in shared_vectors:
                 collection_to_send.append(min(vector))
@@ -88,16 +87,12 @@ def child_server(conn, addr, b, shared_vectors):
                 collection_to_send.append(max(vector))
             message = collection_to_send
         elif split_data[0] == "asc":
-            for vector in shared_vectors:
-                vector.sort()
-                collection_to_send.append(vector)
-            shared_vectors = collection_to_send
+            for i in range(len(shared_vectors)):
+                shared_vectors[i] = sorted(shared_vectors[i])
             message = "Успешно"
         elif split_data[0] == "desc":
-            for vector in shared_vectors:
-                vector.sort(reverse=True)
-                collection_to_send.append(vector)
-            shared_vectors = collection_to_send
+            for i in range(len(shared_vectors)):
+                shared_vectors[i] = sorted(shared_vectors[i], reverse=True)
             message = "Успешно"
         elif split_data[0] == "sum":
             index_vector_1 = int(split_data[1]) - 1
@@ -131,6 +126,7 @@ def child_server(conn, addr, b, shared_vectors):
     conn.close()
     b.set(b.get() - 1)
     print("Активных клиентов:", b.get())
+    sys.exit(0)
 
 
 if __name__ == '__main__':
