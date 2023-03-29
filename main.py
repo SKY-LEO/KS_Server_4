@@ -3,6 +3,7 @@ import pickle
 import socket
 from multiprocessing import shared_memory, Array, Manager
 import sys
+import multiprocessing
 
 words = ("нуль", "один", "два", "три", "четыре", "пять", "шесть", "семь", "восемь", "девять", "десять")
 
@@ -10,7 +11,7 @@ words = ("нуль", "один", "два", "три", "четыре", "пять",
 def server():
     vectors = [[6, 8, 9, 67, -7], [6, 9, 0], [1, 2, 3, 4, 0]]
     shared_vectors = Manager().list(vectors)
-    a = shared_memory.ShareableList([0, ])
+    a = Manager().Value('i', 0)
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(('localhost', 7000))  # Привязываем серверный сокет к localhost и 3030 порту.
     backlog = 10  # Размер очереди входящих подключений, т.н. backlog
@@ -18,20 +19,21 @@ def server():
 
     while True:
         conn, addr = s.accept()  # Метод, который принимает входящее соединение.
-        a[0] = a[0] + 1
-        print("активных клиентов:", a[0])
+        # a[0] = a[0] + 1
+        a.set(a.get() + 1)
+        print("активных клиентов:", a.get())
         pid = os.fork()
         if pid == 0:
             s.close()
-            child_server(conn, addr, a.shm.name, shared_vectors)
+            child_server(conn, addr, a, shared_vectors)
+            sys.exit(0)
         else:
             conn.close()
-            print(shared_vectors)
 
 
-def child_server(conn, addr, share_name, shared_vectors):
+def child_server(conn, addr, b, shared_vectors):
     message = ""
-    b = shared_memory.ShareableList(name=share_name)
+    # b = shared_memory.ShareableList(name=share_name)
     print("Это ведомый поток")
     print("Создано соединение между сервером и клиентом")
     while True:
@@ -39,7 +41,7 @@ def child_server(conn, addr, share_name, shared_vectors):
         if not data:
             break
         data = pickle.loads(data)
-        print("Получено сообщение от клиента", b[0], addr, ":", data)
+        print("Получено сообщение от клиента", b.get(), addr, ":", data)
         split_data = data.split()
         collection_to_send = []
         if data == "view":
@@ -61,7 +63,6 @@ def child_server(conn, addr, share_name, shared_vectors):
             message = "Успешно"
         elif split_data[0] == "*":
             coefficient = int(split_data[1])
-            print(coefficient)
             for vector in shared_vectors:
                 temp = []
                 for el in vector:
@@ -69,14 +70,67 @@ def child_server(conn, addr, share_name, shared_vectors):
                 collection_to_send.append(temp)
             message = "Успешно"
             shared_vectors = collection_to_send
+        elif split_data[0] == "/":
+            coefficient = int(split_data[1])
+            for vector in shared_vectors:
+                temp = []
+                for el in vector:
+                    temp.append(el / coefficient)
+                collection_to_send.append(temp)
+            message = "Успешно"
+            shared_vectors = collection_to_send
+        elif split_data[0] == "min":
+            for vector in shared_vectors:
+                collection_to_send.append(min(vector))
+            message = collection_to_send
+        elif split_data[0] == "max":
+            for vector in shared_vectors:
+                collection_to_send.append(max(vector))
+            message = collection_to_send
+        elif split_data[0] == "asc":
+            for vector in shared_vectors:
+                vector.sort()
+                collection_to_send.append(vector)
+            shared_vectors = collection_to_send
+            message = "Успешно"
+        elif split_data[0] == "desc":
+            for vector in shared_vectors:
+                vector.sort(reverse=True)
+                collection_to_send.append(vector)
+            shared_vectors = collection_to_send
+            message = "Успешно"
+        elif split_data[0] == "sum":
+            index_vector_1 = int(split_data[1]) - 1
+            index_vector_2 = int(split_data[2]) - 1
+            length_of_vectors = len(shared_vectors)
+            if index_vector_1 in range(length_of_vectors) or index_vector_2 in range(length_of_vectors):
+                if len(shared_vectors[index_vector_1]) == len(shared_vectors[index_vector_2]):
+                    for i in range(len(shared_vectors[index_vector_1])):
+                        collection_to_send.append(shared_vectors[index_vector_1][i] + shared_vectors[index_vector_2][i])
+                    message = collection_to_send
+                else:
+                    message = "Длина векторов не совпадает!"
+            else:
+                message = "Таких элементов не существует!"
+        elif split_data[0] == "dif":
+            index_vector_1 = int(split_data[1]) - 1
+            index_vector_2 = int(split_data[2]) - 1
+            length_of_vectors = len(shared_vectors)
+            if index_vector_1 in range(length_of_vectors) or index_vector_2 in range(length_of_vectors):
+                if len(shared_vectors[index_vector_1]) == len(shared_vectors[index_vector_2]):
+                    for i in range(len(shared_vectors[index_vector_1])):
+                        collection_to_send.append(shared_vectors[index_vector_1][i] - shared_vectors[index_vector_2][i])
+                    message = collection_to_send
+                else:
+                    message = "Длина векторов не совпадает!"
+            else:
+                message = "Таких элементов не существует!"
         print("Сервер отправил сообщение", message)
         conn.sendall(pickle.dumps(message))  # Отправляем данные в сокет.
-    print("Клиент", b[0], "отключился")
+    print("Клиент", b.get(), "отключился")
     conn.close()
-    b[0] = b[0] - 1
-    print("Активных клиентов:", b[0])
-    b.shm.close()
-    sys.exit()
+    b.set(b.get() - 1)
+    print("Активных клиентов:", b.get())
 
 
 if __name__ == '__main__':
