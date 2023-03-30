@@ -11,7 +11,7 @@ def server():
     shared_vectors = Manager().list(vectors)
     num_of_active_clients = Manager().Value('i', 0)
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(('localhost', 7000))
+    server_socket.bind(('localhost', 6000))
     server_socket.listen(1)
 
     while True:
@@ -33,88 +33,91 @@ def child_server(client_socket, client_address, num_of_active_clients, shared_ve
         if not received_message:
             break
         received_message = pickle.loads(received_message)
-        print("Получено сообщение от клиента", num_of_active_clients.get(), client_address, ":", received_message)
+        print("Получено сообщение от клиента", client_address, ":", received_message)
         split_data = received_message.split()
-        collection_to_send = []
-        match(split_data[0]):
-            case "view":
-                for disk in shared_vectors:
-                    collection_to_send.append(disk)
-                message_to_send = collection_to_send
-            case "add":
-                for element in range(1, len(split_data)):
-                    collection_to_send.append(int(split_data[element]))
-                shared_vectors.append(collection_to_send)
-                message_to_send = "Успешно"
-            case "edit":
-                for element in range(2, len(split_data)):
-                    collection_to_send.append(int(split_data[element]))
-                shared_vectors[int(split_data[1]) - 1] = collection_to_send
-                message_to_send = "Успешно"
-            case "delete":
-                shared_vectors.pop(int(split_data[1]) - 1)
-                message_to_send = "Успешно"
-            case "*":
-                coefficient = int(split_data[1])
-                for i in range(len(shared_vectors)):
-                    temp = []
-                    for j in range(len(shared_vectors[i])):
-                        temp.append(shared_vectors[i][j] * coefficient)
-                    shared_vectors[i] = temp
-                message_to_send = "Успешно"
-            case "/":
-                coefficient = int(split_data[1])
-                for i in range(len(shared_vectors)):
-                    temp = []
-                    for j in range(len(shared_vectors[i])):
-                        temp.append(shared_vectors[i][j] / coefficient)
-                    shared_vectors[i] = temp
-                message_to_send = "Успешно"
-            case "min":
-                for vector in shared_vectors:
-                    collection_to_send.append(min(vector))
-                message_to_send = collection_to_send
-            case "max":
-                for vector in shared_vectors:
-                    collection_to_send.append(max(vector))
-                message_to_send = collection_to_send
-            case "asc":
-                for i in range(len(shared_vectors)):
-                    shared_vectors[i] = sorted(shared_vectors[i])
-                message_to_send = "Успешно"
-            case "desc":
-                for i in range(len(shared_vectors)):
-                    shared_vectors[i] = sorted(shared_vectors[i], reverse=True)
-                message_to_send = "Успешно"
-            case "sum":
-                index_vector_1 = int(split_data[1]) - 1
-                index_vector_2 = int(split_data[2]) - 1
-                length_of_vectors = len(shared_vectors)
-                if index_vector_1 in range(length_of_vectors) or index_vector_2 in range(length_of_vectors):
-                    if len(shared_vectors[index_vector_1]) == len(shared_vectors[index_vector_2]):
-                        for i in range(len(shared_vectors[index_vector_1])):
-                            collection_to_send.append(shared_vectors[index_vector_1][i] + shared_vectors[index_vector_2][i])
-                        message_to_send = collection_to_send
+        temp_list = []
+        try:
+            match(split_data[0]):
+                case "view":
+                    for vector in shared_vectors:
+                        temp_list.append(vector)
+                    message_to_send = temp_list
+                case "add":
+                    for element in range(1, len(split_data)):
+                        temp_list.append(int(split_data[element]))
+                    shared_vectors.append(temp_list)
+                    message_to_send = "Успешно"
+                case "edit":
+                    for element in range(2, len(split_data)):
+                        temp_list.append(int(split_data[element]))
+                    shared_vectors[int(split_data[1]) - 1] = temp_list
+                    message_to_send = "Успешно"
+                case "delete":
+                    shared_vectors.pop(int(split_data[1]) - 1)
+                    message_to_send = "Успешно"
+                case "*":
+                    coefficient = int(split_data[1])
+                    for i in range(len(shared_vectors)):
+                        temp = []
+                        for j in range(len(shared_vectors[i])):
+                            temp.append(shared_vectors[i][j] * coefficient)
+                        shared_vectors[i] = temp
+                    message_to_send = "Успешно"
+                case "/":
+                    coefficient = int(split_data[1])
+                    for i in range(len(shared_vectors)):
+                        temp = []
+                        for j in range(len(shared_vectors[i])):
+                            temp.append(shared_vectors[i][j] / coefficient)
+                        shared_vectors[i] = temp
+                    message_to_send = "Успешно"
+                case "min":
+                    for vector in shared_vectors:
+                        temp_list.append(min(vector))
+                    message_to_send = temp_list
+                case "max":
+                    for vector in shared_vectors:
+                        temp_list.append(max(vector))
+                    message_to_send = temp_list
+                case "asc":
+                    for i in range(len(shared_vectors)):
+                        shared_vectors[i] = sorted(shared_vectors[i])
+                    message_to_send = "Успешно"
+                case "desc":
+                    for i in range(len(shared_vectors)):
+                        shared_vectors[i] = sorted(shared_vectors[i], reverse=True)
+                    message_to_send = "Успешно"
+                case "sum":
+                    index_vector_1 = int(split_data[1]) - 1
+                    index_vector_2 = int(split_data[2]) - 1
+                    length_of_vectors = len(shared_vectors)
+                    if index_vector_1 in range(length_of_vectors) or index_vector_2 in range(length_of_vectors):
+                        if len(shared_vectors[index_vector_1]) == len(shared_vectors[index_vector_2]):
+                            for i in range(len(shared_vectors[index_vector_1])):
+                                temp_list.append(shared_vectors[index_vector_1][i] + shared_vectors[index_vector_2][i])
+                            message_to_send = temp_list
+                        else:
+                            message_to_send = "Длина векторов не совпадает!"
                     else:
-                        message_to_send = "Длина векторов не совпадает!"
-                else:
-                    message_to_send = "Таких элементов не существует!"
-            case "dif":
-                index_vector_1 = int(split_data[1]) - 1
-                index_vector_2 = int(split_data[2]) - 1
-                length_of_vectors = len(shared_vectors)
-                if index_vector_1 in range(length_of_vectors) or index_vector_2 in range(length_of_vectors):
-                    if len(shared_vectors[index_vector_1]) == len(shared_vectors[index_vector_2]):
-                        for i in range(len(shared_vectors[index_vector_1])):
-                            collection_to_send.append(shared_vectors[index_vector_1][i] - shared_vectors[index_vector_2][i])
-                        message_to_send = collection_to_send
+                        message_to_send = "Таких элементов не существует!"
+                case "dif":
+                    index_vector_1 = int(split_data[1]) - 1
+                    index_vector_2 = int(split_data[2]) - 1
+                    length_of_vectors = len(shared_vectors)
+                    if index_vector_1 in range(length_of_vectors) or index_vector_2 in range(length_of_vectors):
+                        if len(shared_vectors[index_vector_1]) == len(shared_vectors[index_vector_2]):
+                            for i in range(len(shared_vectors[index_vector_1])):
+                                temp_list.append(shared_vectors[index_vector_1][i] - shared_vectors[index_vector_2][i])
+                            message_to_send = temp_list
+                        else:
+                            message_to_send = "Длина векторов не совпадает!"
                     else:
-                        message_to_send = "Длина векторов не совпадает!"
-                else:
-                    message_to_send = "Таких элементов не существует!"
-            case _:
-                message_to_send = "Ошибка"
-        print("Сервер отправил сообщение:", message_to_send, "\n")
+                        message_to_send = "Таких элементов не существует!"
+                case _:
+                    message_to_send = "Неизвестная ошибка!"
+        except IndexError:
+            message_to_send = "Ошибка! Проверьте синтаксис ввода!"
+        print("Сервер отправил клиенту", client_address, "сообщение:", message_to_send, "\n")
         client_socket.sendall(pickle.dumps(message_to_send))
     print("Клиент", client_address, "отключился")
     client_socket.close()
